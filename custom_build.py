@@ -116,7 +116,11 @@ def build(src_dir, tag):
     run([find_go(), "build", "-trimpath", "-ldflags", "-H=windowsgui -s -w",
          "-o", exe, "./cmd/wbone"], cwd=src_dir)
     os.makedirs(DIST_DIR, exist_ok=True)
-    zpath = os.path.join(DIST_DIR, APP_NAME + "-" + tag + "-win64.zip")
+    # 更新器硬性要求: 资产名必须是 WorkBuddyOne-v<版本>-win64.zip,
+    # 且 Release 的 tag 版本要比用户当前运行的官方版本高才触发更新,
+    # 所以定制版统一在第 4 段 +1: v1.0.16 -> v1.0.16.1
+    zipver = tag if tag.count(".") >= 3 else tag + ".1"
+    zpath = os.path.join(DIST_DIR, "WorkBuddyOne-v" + zipver.lstrip("v") + "-win64.zip")
     import zipfile
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(exe, APP_NAME + ".exe")   # 包里只放一个 exe(更新器兜底逻辑靠它)
