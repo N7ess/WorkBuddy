@@ -11,6 +11,11 @@ WorkBuddy批量签到 定制构建脚本
 """
 import argparse, base64, io, os, re, shutil, subprocess, sys, urllib.request
 
+# Windows Runner 默认 cp1252 输出编码，打印中文会炸，强制 UTF-8
+for _s in (sys.stdout, sys.stderr):
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 UPSTREAM_REPO = "https://github.com/3155498108/workbuddy-one"
 BUILD_DIR = os.path.join(HERE, "build")
