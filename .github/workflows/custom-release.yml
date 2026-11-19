@@ -54,8 +54,12 @@ jobs:
       - name: 构建定制版
         if: steps.check.outputs.skip == 'false'
         shell: pwsh
+        env:
+          PYTHONIOENCODING: "utf-8"
         run: |
           go install github.com/tc-hib/go-winres@latest
+          $gopath = (go env GOPATH)
+          $env:PATH = "$gopath\bin;$env:PATH"
           pip install Pillow
           python custom_build.py --tag ${{ steps.tag.outputs.latest }}
 
