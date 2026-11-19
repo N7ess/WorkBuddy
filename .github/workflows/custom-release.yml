@@ -1,0 +1,71 @@
+# 放到你自己的 GitHub 仓库里: .github/workflows/custom-release.yml
+# 功能: 每天检查官方 workbuddy-one 新版本, 有新版就自动构建定制版并发布到你仓库的 Release
+# 你的客户端 update_feed 指向你仓库的 releases/latest, 拉到的就永远是定制版
+# 注意: Release tag 用 官方tag+".1"(如 v1.0.16.1), 因为更新器要求定制版本号必须高于官方版本号
+name: custom-release
+
+on:
+  schedule:
+    - cron: "0 2 * * *"     # 每天 UTC 2 点(北京 10 点)检查一次
+  workflow_dispatch:          # 支持手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 查询官方最新 tag
+        id: tag
+        shell: bash
+        run: |
+          LATEST=$(curl -sI https://github.com/3155498108/workbuddy-one/releases/latest | grep -i '^location:' | sed 's|.*/tag/||' | tr -d '\r')
+          CUSTOM="${LATEST}.1"
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "custom=$CUSTOM" >> $GITHUB_OUTPUT
+          echo "官方最新: $LATEST -> 定制 tag: $CUSTOM"
+
+      - name: 已发布则跳过
+        id: check
+        shell: bash
+        run: |
+          if gh release view "${{ steps.tag.outputs.custom }}" --repo $GITHUB_REPOSITORY >/dev/null 2>&1; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "定制版 ${{ steps.tag.outputs.custom }} 已发布过, 跳过"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/setup-go@v5
+        if: steps.check.outputs.skip == 'false'
+        with:
+          go-version: "1.23"
+
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.skip == 'false'
+        with:
+          python-version: "3.12"
+
+      - name: 构建定制版
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        run: |
+          go install github.com/tc-hib/go-winres@latest
+          pip install Pillow
+          python custom_build.py --tag ${{ steps.tag.outputs.latest }}
+
+      - name: 发布 Release
+        if: steps.check.outputs.skip == 'false'
+        shell: bash
+        run: |
+          gh release create "${{ steps.tag.outputs.custom }}" dist/*.zip \
+            --repo $GITHUB_REPOSITORY \
+            --title "${{ steps.tag.outputs.custom }} 定制版" \
+            --notes "WorkBuddy批量签到 定制构建, 基于官方 ${{ steps.tag.outputs.latest }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
